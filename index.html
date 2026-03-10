@@ -359,6 +359,14 @@ footer {
         </div>
       </div>
       <div class="control-group">
+        <label>集計キー</label>
+        <select id="groupBy">
+          <option value="partner">取引先</option>
+          <option value="summary">摘要</option>
+          <option value="partner-or-summary">取引先（空なら摘要）</option>
+        </select>
+      </div>
+      <div class="control-group">
         <label>集計方向</label>
         <select id="direction">
           <option value="auto">自動判定</option>
@@ -404,6 +412,7 @@ const parseStatus = document.getElementById('parseStatus');
 const targetAccount = document.getElementById('targetAccount');
 const targetAccountText = document.getElementById('targetAccountText');
 const accountSuggestions = document.getElementById('accountSuggestions');
+const groupBy = document.getElementById('groupBy');
 const direction = document.getElementById('direction');
 const topN = document.getElementById('topN');
 const aggregateBtn = document.getElementById('aggregateBtn');
@@ -480,6 +489,7 @@ function detectAndParse(text) {
           account: dAccount,
           subAccount: get(cols, '借方補助科目'),
           partner: get(cols, '借方取引先'),
+          summary: get(cols, '摘要'),
           taxType: get(cols, '借方税区分'),
           amount: parseAmount(get(cols, '借方金額(円)')),
           side: 'debit'
@@ -494,6 +504,7 @@ function detectAndParse(text) {
           account: cAccount,
           subAccount: get(cols, '貸方補助科目'),
           partner: get(cols, '貸方取引先'),
+          summary: get(cols, '摘要'),
           taxType: get(cols, '貸方税区分'),
           amount: parseAmount(get(cols, '貸方金額(円)')),
           side: 'credit'
@@ -530,6 +541,7 @@ function detectAndParse(text) {
         account: get(cols, '勘定科目'),
         subAccount: get(cols, '補助科目'),
         partner: get(cols, '取引先'),
+        summary: get(cols, '摘要'),
         taxType: get(cols, '税区分'),
         amount: parseAmount(get(cols, '金額(円)')),
         side: lineInTx === 0 ? 'debit' : 'credit'
@@ -700,10 +712,19 @@ aggregateBtn.addEventListener('click', () => {
   }
   // 'auto': use all matching rows
 
-  // Aggregate by partner
+  // Aggregate by selected key
+  const groupByVal = groupBy.value;
   const map = {};
   filtered.forEach(r => {
-    const key = r.partner || '（取引先未記入）';
+    let key;
+    if (groupByVal === 'partner') {
+      key = r.partner || '（取引先未記入）';
+    } else if (groupByVal === 'summary') {
+      key = r.summary || '（摘要未記入）';
+    } else {
+      // partner-or-summary: 取引先があればそれ、なければ摘要
+      key = r.partner || r.summary || '（未記入）';
+    }
     map[key] = (map[key] || 0) + r.amount;
   });
 
