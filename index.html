@@ -131,9 +131,30 @@ select, input[type="number"] {
   background: var(--surface);
 }
 
-select:focus, input[type="number"]:focus {
+select:focus, input[type="number"]:focus, input[type="text"]:focus {
   outline: none;
   border-color: var(--accent);
+}
+
+.combo-input {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.combo-input select {
+  flex: 1;
+  min-width: 0;
+}
+
+.combo-input input[type="text"] {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  background: var(--surface);
 }
 
 .btn {
@@ -329,9 +350,13 @@ footer {
     <div class="controls">
       <div class="control-group">
         <label>集計対象の勘定科目</label>
-        <select id="targetAccount">
-          <option value="">-- CSVを読み込むと選択できます --</option>
-        </select>
+        <div class="combo-input">
+          <select id="targetAccount">
+            <option value="">-- CSVを読み込むと選択できます --</option>
+          </select>
+          <input type="text" id="targetAccountText" placeholder="直接入力も可" list="accountSuggestions">
+          <datalist id="accountSuggestions"></datalist>
+        </div>
       </div>
       <div class="control-group">
         <label>集計方向</label>
@@ -377,6 +402,8 @@ let detectedFormat = '';   // 'mf' | 'csv'
 const csvInput = document.getElementById('csvInput');
 const parseStatus = document.getElementById('parseStatus');
 const targetAccount = document.getElementById('targetAccount');
+const targetAccountText = document.getElementById('targetAccountText');
+const accountSuggestions = document.getElementById('accountSuggestions');
 const direction = document.getElementById('direction');
 const topN = document.getElementById('topN');
 const aggregateBtn = document.getElementById('aggregateBtn');
@@ -554,11 +581,21 @@ function handleParse() {
       targetAccount.appendChild(opt);
     });
 
+    // Populate datalist for text input suggestions
+    accountSuggestions.innerHTML = '';
+    sorted.forEach(a => {
+      const opt = document.createElement('option');
+      opt.value = a;
+      accountSuggestions.appendChild(opt);
+    });
+
     // Auto-select 売上高 if exists
     if (accounts.includes('売上高')) {
       targetAccount.value = '売上高';
+      targetAccountText.value = '売上高';
     } else if (accounts.includes('売上')) {
       targetAccount.value = '売上';
+      targetAccountText.value = '売上';
     }
 
     aggregateBtn.disabled = false;
@@ -578,6 +615,22 @@ let parseTimer = null;
 csvInput.addEventListener('input', () => {
   clearTimeout(parseTimer);
   parseTimer = setTimeout(handleParse, 300);
+});
+
+// Select ↔ Text input sync
+targetAccount.addEventListener('change', () => {
+  targetAccountText.value = targetAccount.value;
+});
+
+targetAccountText.addEventListener('input', () => {
+  // If text matches a select option, select it; otherwise clear select
+  const val = targetAccountText.value.trim();
+  const opts = [...targetAccount.options].map(o => o.value);
+  if (opts.includes(val)) {
+    targetAccount.value = val;
+  } else {
+    targetAccount.value = '';
+  }
 });
 
 // ============================================================
@@ -628,7 +681,8 @@ let lastResult = [];
 let lastAccountLabel = '';
 
 aggregateBtn.addEventListener('click', () => {
-  const account = targetAccount.value;
+  // Text input takes priority; fallback to select
+  const account = targetAccountText.value.trim() || targetAccount.value;
   const dir = direction.value;
   const top = parseInt(topN.value, 10) || 5;
 
