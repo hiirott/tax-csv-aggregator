@@ -464,37 +464,41 @@ function detectAndParse(text) {
   const header = parseCSVLine(lines[0]);
   const rows = [];
 
-  // Normalize header: full-width parens → half-width
+  // Normalize header: full-width parens → half-width, trim quotes
   const normalizedHeader = header.map(h => h.replace(/（/g, '(').replace(/）/g, ')'));
 
-  // Detect format
-  const hasSideColumns = normalizedHeader.some(h => h.includes('借方勘定科目'));
+  // Build column map
+  const colMap = {};
+  normalizedHeader.forEach((h, i) => { colMap[h] = i; });
+  const has = (name) => colMap[name] !== undefined;
+  const get = (cols, name) => (colMap[name] !== undefined ? (cols[colMap[name]] || '') : '');
 
-  if (hasSideColumns) {
-    // MF形式 (23 columns, debit/credit separated)
-    detectedFormat = 'mf';
-    const colMap = {};
-    normalizedHeader.forEach((h, i) => { colMap[h] = i; });
+  // Detect format by checking which columns exist
+  const hasDebitAccount = has('借方勘定科目');
+  const hasCounterAccount = has('相手勘定科目');
+  const hasSingleAccount = has('勘定科目');
 
-    const get = (cols, name) => (colMap[name] !== undefined ? (cols[colMap[name]] || '') : '');
+  if (hasDebitAccount) {
+    // ===== 仕訳帳MF形式 (23列: 借方/貸方勘定科目が分離) =====
+    detectedFormat = 'mf-journal';
 
     for (let i = 1; i < lines.length; i++) {
       const cols = parseCSVLine(lines[i]);
       if (cols.length < 10) continue;
 
       const date = get(cols, '取引日');
+      const summary = get(cols, '摘要');
 
       // Debit side
       const dAccount = get(cols, '借方勘定科目');
       if (dAccount) {
         rows.push({
-          date,
-          account: dAccount,
+          date, account: dAccount,
           subAccount: get(cols, '借方補助科目'),
           partner: get(cols, '借方取引先'),
-          summary: get(cols, '摘要'),
+          summary,
           taxType: get(cols, '借方税区分'),
-          amount: parseAmount(get(cols, '借方金額(円)')),
+          amount: parseAmount(get(cols, '借方金額(円)') || get(cols, '借方金額')),
           side: 'debit'
         });
       }
@@ -503,27 +507,60 @@ function detectAndParse(text) {
       const cAccount = get(cols, '貸方勘定科目');
       if (cAccount) {
         rows.push({
-          date,
-          account: cAccount,
+          date, account: cAccount,
           subAccount: get(cols, '貸方補助科目'),
           partner: get(cols, '貸方取引先'),
-          summary: get(cols, '摘要'),
+          summary,
           taxType: get(cols, '貸方税区分'),
-          amount: parseAmount(get(cols, '貸方金額(円)')),
+          amount: parseAmount(get(cols, '貸方金額(円)') || get(cols, '貸方金額')),
           side: 'credit'
         });
       }
     }
-  } else {
-    // CSV形式 (12 columns, one line per account)
-    detectedFormat = 'csv';
-    const colMap = {};
-    normalizedHeader.forEach((h, i) => { colMap[h] = i; });
 
-    const get = (cols, name) => (colMap[name] !== undefined ? (cols[colMap[name]] || '') : '');
+  } else if (hasCounterAccount && hasSingleAccount) {
+    // ===== 総勘定元帳形式 (18列: 勘定科目 + 相手勘定科目 + 借方金額/貸方金額) =====
+    detectedFormat = 'ledger';
 
-    // In CSV format, we need to determine debit/credit from context
-    // Each transaction pair: first line = debit, second line = credit (same 取引No)
+    for (let i = 1; i < lines.length; i++) {
+      const cols = parseCSVLine(lines[i]);
+      if (cols.length < 10) continue;
+
+      const date = get(cols, '取引日');
+      const account = get(cols, '勘定科目');
+      const summary = get(cols, '摘要');
+      const debitAmt = parseAmount(get(cols, '借方金額'));
+      const creditAmt = parseAmount(get(cols, '貸方金額'));
+
+      // 借方金額があれば借方行、貸方金額があれば貸方行
+      if (debitAmt > 0) {
+        rows.push({
+          date, account,
+          subAccount: get(cols, '補助科目'),
+          partner: get(cols, '取引先') || get(cols, '相手取引先'),
+          summary,
+          taxType: get(cols, '税区分'),
+          amount: debitAmt,
+          side: 'debit'
+        });
+      }
+      if (creditAmt > 0) {
+        rows.push({
+          date, account,
+          subAccount: get(cols, '補助科目'),
+          partner: get(cols, '取引先') || get(cols, '相手取引先'),
+          summary,
+          taxType: get(cols, '税区分'),
+          amount: creditAmt,
+          side: 'credit'
+        });
+      }
+    }
+
+  } else if (hasSingleAccount) {
+    // ===== 仕訳帳CSV形式 (12列: 1行1科目) =====
+    detectedFormat = 'csv-journal';
+
     let lastTxNo = null;
     let lineInTx = 0;
 
@@ -546,10 +583,13 @@ function detectAndParse(text) {
         partner: get(cols, '取引先'),
         summary: get(cols, '摘要'),
         taxType: get(cols, '税区分'),
-        amount: parseAmount(get(cols, '金額(円)')),
+        amount: parseAmount(get(cols, '金額(円)') || get(cols, '金額')),
         side: lineInTx === 0 ? 'debit' : 'credit'
       });
     }
+
+  } else {
+    throw new Error('認識できないCSV形式です。ヘッダー行: ' + normalizedHeader.slice(0, 5).join(', ') + '...');
   }
 
   return rows;
@@ -614,7 +654,12 @@ function handleParse() {
     }
 
     aggregateBtn.disabled = false;
-    const formatLabel = detectedFormat === 'mf' ? 'MF形式' : 'CSV形式';
+    const formatLabels = {
+      'mf-journal': 'MF仕訳帳形式',
+      'ledger': '総勘定元帳形式',
+      'csv-journal': 'CSV仕訳帳形式'
+    };
+    const formatLabel = formatLabels[detectedFormat] || detectedFormat;
     const withAmount = parsedRows.filter(r => r.amount > 0).length;
     const withPartner = parsedRows.filter(r => r.partner).length;
     const withSummary = parsedRows.filter(r => r.summary).length;
