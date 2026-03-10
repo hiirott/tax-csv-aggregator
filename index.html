@@ -464,14 +464,17 @@ function detectAndParse(text) {
   const header = parseCSVLine(lines[0]);
   const rows = [];
 
+  // Normalize header: full-width parens → half-width
+  const normalizedHeader = header.map(h => h.replace(/（/g, '(').replace(/）/g, ')'));
+
   // Detect format
-  const hasSideColumns = header.some(h => h.includes('借方勘定科目'));
+  const hasSideColumns = normalizedHeader.some(h => h.includes('借方勘定科目'));
 
   if (hasSideColumns) {
     // MF形式 (23 columns, debit/credit separated)
     detectedFormat = 'mf';
     const colMap = {};
-    header.forEach((h, i) => { colMap[h] = i; });
+    normalizedHeader.forEach((h, i) => { colMap[h] = i; });
 
     const get = (cols, name) => (colMap[name] !== undefined ? (cols[colMap[name]] || '') : '');
 
@@ -515,7 +518,7 @@ function detectAndParse(text) {
     // CSV形式 (12 columns, one line per account)
     detectedFormat = 'csv';
     const colMap = {};
-    header.forEach((h, i) => { colMap[h] = i; });
+    normalizedHeader.forEach((h, i) => { colMap[h] = i; });
 
     const get = (cols, name) => (colMap[name] !== undefined ? (cols[colMap[name]] || '') : '');
 
@@ -612,8 +615,11 @@ function handleParse() {
 
     aggregateBtn.disabled = false;
     const formatLabel = detectedFormat === 'mf' ? 'MF形式' : 'CSV形式';
+    const withAmount = parsedRows.filter(r => r.amount > 0).length;
+    const withPartner = parsedRows.filter(r => r.partner).length;
+    const withSummary = parsedRows.filter(r => r.summary).length;
     parseStatus.className = 'status success';
-    parseStatus.textContent = `${formatLabel}として認識。${parsedRows.length}件の仕訳行を読み込みました（科目数: ${accounts.length}）`;
+    parseStatus.textContent = `${formatLabel}として認識。${parsedRows.length}件の仕訳行（金額あり: ${withAmount}件、取引先あり: ${withPartner}件、摘要あり: ${withSummary}件、科目数: ${accounts.length}）`;
   } catch (e) {
     csvInput.classList.remove('has-data');
     parseStatus.className = 'status error';
