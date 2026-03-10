@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>売上・仕入内訳集計ツール</title>
+<style>
+:root {
+  --bg: #f5f7fa;
+  --surface: #ffffff;
+  --text: #1a1a2e;
+  --text-sub: #6b7280;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --border: #e5e7eb;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --radius: 8px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.subtitle {
+  color: var(--text-sub);
+  font-size: 0.85rem;
+  margin-bottom: 24px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.card h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card h2 .step {
+  background: var(--accent);
+  color: #fff;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+textarea {
+  width: 100%;
+  height: 200px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  font-family: 'SF Mono', 'Consolas', monospace;
+  font-size: 0.8rem;
+  resize: vertical;
+  transition: border-color 0.2s;
+}
+
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+textarea.has-data {
+  border-style: solid;
+  border-color: var(--success);
+}
+
+.hint {
+  color: var(--text-sub);
+  font-size: 0.78rem;
+  margin-top: 6px;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.control-group label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-sub);
+}
+
+select, input[type="number"] {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  background: var(--surface);
+}
+
+select:focus, input[type="number"]:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.btn {
+  padding: 8px 20px;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover);
+}
+
+.btn-secondary {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.btn-secondary:hover {
+  background: var(--bg);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.status {
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+  margin-top: 8px;
+  display: none;
+}
+
+.status.info {
+  background: #eff6ff;
+  color: #1e40af;
+  display: block;
+}
+
+.status.success {
+  background: #ecfdf5;
+  color: #065f46;
+  display: block;
+}
+
+.status.error {
+  background: #fef2f2;
+  color: #991b1b;
+  display: block;
+}
+
+/* Result table */
+.result-section {
+  display: none;
+}
+
+.result-section.visible {
+  display: block;
+}
+
+.result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.result-header .actions {
+  display: flex;
+  gap: 8px;
+}
+
+.summary-info {
+  font-size: 0.8rem;
+  color: var(--text-sub);
+  margin-bottom: 12px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+thead th {
+  background: var(--bg);
+  padding: 10px 12px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: var(--text-sub);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: 2px solid var(--border);
+}
+
+thead th.num {
+  text-align: right;
+}
+
+tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+tbody td.num {
+  text-align: right;
+  font-family: 'SF Mono', 'Consolas', monospace;
+  font-size: 0.83rem;
+}
+
+tbody tr:hover {
+  background: #f9fafb;
+}
+
+tbody tr.total-row {
+  font-weight: 700;
+  background: var(--bg);
+}
+
+tbody tr.total-row td {
+  border-top: 2px solid var(--text);
+  border-bottom: none;
+}
+
+tbody tr.others-row {
+  color: var(--text-sub);
+}
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: #1a1a2e;
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all 0.3s;
+  z-index: 100;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+footer {
+  text-align: center;
+  padding: 24px 0 12px;
+  font-size: 0.75rem;
+  color: var(--text-sub);
+}
+
+@media (max-width: 600px) {
+  .controls { flex-direction: column; }
+  .result-header { flex-direction: column; align-items: flex-start; }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>売上・仕入内訳 集計ツール</h1>
+  <p class="subtitle">MFクラウド会計のCSVを貼り付けるだけで、青色申告決算書・消費税還付明細書の内訳を自動集計</p>
+
+  <!-- STEP 1: CSV Input -->
+  <div class="card">
+    <h2><span class="step">1</span>CSVデータを貼り付け</h2>
+    <textarea id="csvInput" placeholder="MFクラウド会計の仕訳帳からエクスポートしたCSVをここに貼り付けてください&#10;&#10;対応形式：&#10;・MF形式（23列：借方/貸方分離）&#10;・CSV形式（12列：1行1科目）&#10;&#10;※ Shift-JIS / UTF-8 どちらでもOK"></textarea>
+    <p class="hint">仕訳帳 → エクスポート → CSV or MFクラウド形式。ファイルのドラッグ&ドロップにも対応。</p>
+    <div id="parseStatus" class="status"></div>
+  </div>
+
+  <!-- STEP 2: Filter & Aggregate -->
+  <div class="card">
+    <h2><span class="step">2</span>集計条件を設定</h2>
+    <div class="controls">
+      <div class="control-group">
+        <label>集計対象の勘定科目</label>
+        <select id="targetAccount">
+          <option value="">-- CSVを読み込むと選択できます --</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label>集計方向</label>
+        <select id="direction">
+          <option value="auto">自動判定</option>
+          <option value="debit">借方（売上先など）</option>
+          <option value="credit">貸方（仕入先など）</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label>上位件数</label>
+        <input type="number" id="topN" value="5" min="1" max="50" style="width:80px;">
+      </div>
+      <button class="btn btn-primary" id="aggregateBtn" disabled>集計する</button>
+    </div>
+  </div>
+
+  <!-- STEP 3: Result -->
+  <div class="card result-section" id="resultSection">
+    <div class="result-header">
+      <h2><span class="step">3</span>集計結果</h2>
+      <div class="actions">
+        <button class="btn btn-secondary" id="copyBtn">コピー</button>
+        <button class="btn btn-secondary" id="csvExportBtn">CSV出力</button>
+      </div>
+    </div>
+    <p class="summary-info" id="summaryInfo"></p>
+    <div id="resultTable"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<footer>売上・仕入内訳集計ツール — データはブラウザ内のみで処理され、外部に送信されません</footer>
+
+<script>
+// ============================================================
+// State
+// ============================================================
+let parsedRows = [];      // { date, account, subAccount, partner, taxType, amount, side }
+let detectedFormat = '';   // 'mf' | 'csv'
+
+const csvInput = document.getElementById('csvInput');
+const parseStatus = document.getElementById('parseStatus');
+const targetAccount = document.getElementById('targetAccount');
+const direction = document.getElementById('direction');
+const topN = document.getElementById('topN');
+const aggregateBtn = document.getElementById('aggregateBtn');
+const resultSection = document.getElementById('resultSection');
+const resultTable = document.getElementById('resultTable');
+const summaryInfo = document.getElementById('summaryInfo');
+const copyBtn = document.getElementById('copyBtn');
+const csvExportBtn = document.getElementById('csvExportBtn');
+
+// ============================================================
+// CSV Parsing
+// ============================================================
+
+function parseCSVLine(line) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"' && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else if (ch === '"') {
+        inQuotes = false;
+      } else {
+        current += ch;
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ',') {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += ch;
+      }
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
+function detectAndParse(text) {
+  // Normalize line endings
+  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim());
+  if (lines.length < 2) throw new Error('データが不足しています（2行以上必要）');
+
+  const header = parseCSVLine(lines[0]);
+  const rows = [];
+
+  // Detect format
+  const hasSideColumns = header.some(h => h.includes('借方勘定科目'));
+
+  if (hasSideColumns) {
+    // MF形式 (23 columns, debit/credit separated)
+    detectedFormat = 'mf';
+    const colMap = {};
+    header.forEach((h, i) => { colMap[h] = i; });
+
+    const get = (cols, name) => (colMap[name] !== undefined ? (cols[colMap[name]] || '') : '');
+
+    for (let i = 1; i < lines.length; i++) {
+      const cols = parseCSVLine(lines[i]);
+      if (cols.length < 10) continue;
+
+      const date = get(cols, '取引日');
+
+      // Debit side
+      const dAccount = get(cols, '借方勘定科目');
+      if (dAccount) {
+        rows.push({
+          date,
+          account: dAccount,
+          subAccount: get(cols, '借方補助科目'),
+          partner: get(cols, '借方取引先'),
+          taxType: get(cols, '借方税区分'),
+          amount: parseAmount(get(cols, '借方金額(円)')),
+          side: 'debit'
+        });
+      }
+
+      // Credit side
+      const cAccount = get(cols, '貸方勘定科目');
+      if (cAccount) {
+        rows.push({
+          date,
+          account: cAccount,
+          subAccount: get(cols, '貸方補助科目'),
+          partner: get(cols, '貸方取引先'),
+          taxType: get(cols, '貸方税区分'),
+          amount: parseAmount(get(cols, '貸方金額(円)')),
+          side: 'credit'
+        });
+      }
+    }
+  } else {
+    // CSV形式 (12 columns, one line per account)
+    detectedFormat = 'csv';
+    const colMap = {};
+    header.forEach((h, i) => { colMap[h] = i; });
+
+    const get = (cols, name) => (colMap[name] !== undefined ? (cols[colMap[name]] || '') : '');
+
+    // In CSV format, we need to determine debit/credit from context
+    // Each transaction pair: first line = debit, second line = credit (same 取引No)
+    let lastTxNo = null;
+    let lineInTx = 0;
+
+    for (let i = 1; i < lines.length; i++) {
+      const cols = parseCSVLine(lines[i]);
+      if (cols.length < 5) continue;
+
+      const txNo = get(cols, '取引No');
+      if (txNo !== lastTxNo) {
+        lineInTx = 0;
+        lastTxNo = txNo;
+      } else {
+        lineInTx++;
+      }
+
+      rows.push({
+        date: get(cols, '取引日'),
+        account: get(cols, '勘定科目'),
+        subAccount: get(cols, '補助科目'),
+        partner: get(cols, '取引先'),
+        taxType: get(cols, '税区分'),
+        amount: parseAmount(get(cols, '金額(円)')),
+        side: lineInTx === 0 ? 'debit' : 'credit'
+      });
+    }
+  }
+
+  return rows;
+}
+
+function parseAmount(str) {
+  if (!str) return 0;
+  return parseInt(str.replace(/[,，\s]/g, ''), 10) || 0;
+}
+
+// ============================================================
+// UI: Parse on input
+// ============================================================
+
+function handleParse() {
+  const text = csvInput.value.trim();
+  if (!text) {
+    csvInput.classList.remove('has-data');
+    parseStatus.className = 'status';
+    aggregateBtn.disabled = true;
+    targetAccount.innerHTML = '<option value="">-- CSVを読み込むと選択できます --</option>';
+    parsedRows = [];
+    return;
+  }
+
+  try {
+    parsedRows = detectAndParse(text);
+    csvInput.classList.add('has-data');
+
+    // Populate account dropdown
+    const accounts = [...new Set(parsedRows.map(r => r.account))].filter(Boolean).sort();
+    targetAccount.innerHTML = '<option value="">すべての科目</option>';
+
+    // Common accounts first
+    const priority = ['売上高', '売上', '仕入高', '仕入', '外注費'];
+    const sorted = [
+      ...priority.filter(a => accounts.includes(a)),
+      ...accounts.filter(a => !priority.includes(a))
+    ];
+    sorted.forEach(a => {
+      const opt = document.createElement('option');
+      opt.value = a;
+      opt.textContent = a;
+      targetAccount.appendChild(opt);
+    });
+
+    // Auto-select 売上高 if exists
+    if (accounts.includes('売上高')) {
+      targetAccount.value = '売上高';
+    } else if (accounts.includes('売上')) {
+      targetAccount.value = '売上';
+    }
+
+    aggregateBtn.disabled = false;
+    const formatLabel = detectedFormat === 'mf' ? 'MF形式' : 'CSV形式';
+    parseStatus.className = 'status success';
+    parseStatus.textContent = `${formatLabel}として認識。${parsedRows.length}件の仕訳行を読み込みました（科目数: ${accounts.length}）`;
+  } catch (e) {
+    csvInput.classList.remove('has-data');
+    parseStatus.className = 'status error';
+    parseStatus.textContent = 'パースエラー: ' + e.message;
+    aggregateBtn.disabled = true;
+    parsedRows = [];
+  }
+}
+
+let parseTimer = null;
+csvInput.addEventListener('input', () => {
+  clearTimeout(parseTimer);
+  parseTimer = setTimeout(handleParse, 300);
+});
+
+// ============================================================
+// File drag & drop
+// ============================================================
+
+csvInput.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  csvInput.style.borderColor = 'var(--accent)';
+});
+
+csvInput.addEventListener('dragleave', () => {
+  csvInput.style.borderColor = '';
+});
+
+csvInput.addEventListener('drop', (e) => {
+  e.preventDefault();
+  csvInput.style.borderColor = '';
+  const file = e.dataTransfer.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  // Try UTF-8 first, fallback to Shift-JIS
+  reader.onload = () => {
+    const text = reader.result;
+    // Check for garbled text (common Shift-JIS indicator)
+    if (text.includes('\ufffd') || /[\x80-\xff]{3,}/.test(text)) {
+      // Retry as Shift-JIS
+      const reader2 = new FileReader();
+      reader2.onload = () => {
+        csvInput.value = reader2.result;
+        handleParse();
+      };
+      reader2.readAsText(file, 'Shift_JIS');
+    } else {
+      csvInput.value = text;
+      handleParse();
+    }
+  };
+  reader.readAsText(file, 'UTF-8');
+});
+
+// ============================================================
+// Aggregation
+// ============================================================
+
+let lastResult = [];
+let lastAccountLabel = '';
+
+aggregateBtn.addEventListener('click', () => {
+  const account = targetAccount.value;
+  const dir = direction.value;
+  const top = parseInt(topN.value, 10) || 5;
+
+  // Filter rows
+  let filtered = parsedRows;
+  if (account) {
+    filtered = filtered.filter(r => r.account === account);
+  }
+
+  // Direction filter
+  if (dir === 'debit') {
+    filtered = filtered.filter(r => r.side === 'debit');
+  } else if (dir === 'credit') {
+    filtered = filtered.filter(r => r.side === 'credit');
+  }
+  // 'auto': use all matching rows
+
+  // Aggregate by partner
+  const map = {};
+  filtered.forEach(r => {
+    const key = r.partner || '（取引先未記入）';
+    map[key] = (map[key] || 0) + r.amount;
+  });
+
+  // Sort descending
+  const entries = Object.entries(map).sort((a, b) => b[1] - a[1]);
+  const totalAmount = entries.reduce((s, e) => s + e[1], 0);
+
+  // Top N + others
+  const topEntries = entries.slice(0, top);
+  const othersEntries = entries.slice(top);
+  const othersAmount = othersEntries.reduce((s, e) => s + e[1], 0);
+
+  lastResult = { topEntries, othersAmount, othersCount: othersEntries.length, totalAmount };
+  lastAccountLabel = account || 'すべての科目';
+
+  // Render
+  renderResult(lastResult, top);
+  resultSection.classList.add('visible');
+  resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+function renderResult(result, top) {
+  const { topEntries, othersAmount, othersCount, totalAmount } = result;
+
+  summaryInfo.textContent = `科目「${lastAccountLabel}」の取引先別集計（上位${topEntries.length}件${othersCount > 0 ? ' + その他' + othersCount + '件' : ''}、合計: ${formatNum(totalAmount)}円）`;
+
+  let html = '<table><thead><tr><th style="width:40px">#</th><th>取引先名</th><th class="num">金額</th><th class="num" style="width:80px">構成比</th></tr></thead><tbody>';
+
+  topEntries.forEach((entry, i) => {
+    const pct = totalAmount > 0 ? (entry[1] / totalAmount * 100).toFixed(1) : '0.0';
+    html += `<tr><td>${i + 1}</td><td>${esc(entry[0])}</td><td class="num">${formatNum(entry[1])}</td><td class="num">${pct}%</td></tr>`;
+  });
+
+  if (othersCount > 0) {
+    const pct = totalAmount > 0 ? (othersAmount / totalAmount * 100).toFixed(1) : '0.0';
+    html += `<tr class="others-row"><td></td><td>その他（${othersCount}件）</td><td class="num">${formatNum(othersAmount)}</td><td class="num">${pct}%</td></tr>`;
+  }
+
+  html += `<tr class="total-row"><td></td><td>合計</td><td class="num">${formatNum(totalAmount)}</td><td class="num">100.0%</td></tr>`;
+  html += '</tbody></table>';
+
+  resultTable.innerHTML = html;
+}
+
+function formatNum(n) {
+  return n.toLocaleString('ja-JP');
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ============================================================
+// Copy & Export
+// ============================================================
+
+copyBtn.addEventListener('click', () => {
+  if (!lastResult) return;
+  const text = buildPlainText(lastResult);
+  navigator.clipboard.writeText(text).then(() => showToast('クリップボードにコピーしました'));
+});
+
+csvExportBtn.addEventListener('click', () => {
+  if (!lastResult) return;
+  const csv = buildCSV(lastResult);
+  const bom = '\uFEFF';
+  const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `内訳集計_${lastAccountLabel}_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('CSVファイルをダウンロードしました');
+});
+
+function buildPlainText(result) {
+  const { topEntries, othersAmount, othersCount, totalAmount } = result;
+  let lines = [`【${lastAccountLabel}】取引先別内訳`, ''];
+  lines.push('No.\t取引先名\t金額\t構成比');
+  topEntries.forEach((e, i) => {
+    const pct = totalAmount > 0 ? (e[1] / totalAmount * 100).toFixed(1) : '0.0';
+    lines.push(`${i + 1}\t${e[0]}\t${e[1]}\t${pct}%`);
+  });
+  if (othersCount > 0) {
+    const pct = totalAmount > 0 ? (othersAmount / totalAmount * 100).toFixed(1) : '0.0';
+    lines.push(`\tその他（${othersCount}件）\t${othersAmount}\t${pct}%`);
+  }
+  lines.push(`\t合計\t${totalAmount}\t100.0%`);
+  return lines.join('\n');
+}
+
+function buildCSV(result) {
+  const { topEntries, othersAmount, othersCount, totalAmount } = result;
+  let lines = ['No.,取引先名,金額,構成比'];
+  topEntries.forEach((e, i) => {
+    const pct = totalAmount > 0 ? (e[1] / totalAmount * 100).toFixed(1) : '0.0';
+    lines.push(`${i + 1},"${e[0]}",${e[1]},${pct}%`);
+  });
+  if (othersCount > 0) {
+    const pct = totalAmount > 0 ? (othersAmount / totalAmount * 100).toFixed(1) : '0.0';
+    lines.push(`,"その他（${othersCount}件）",${othersAmount},${pct}%`);
+  }
+  lines.push(`,"合計",${totalAmount},100.0%`);
+  return lines.join('\n');
+}
+
+// ============================================================
+// Toast
+// ============================================================
+
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2000);
+}
+</script>
+
+</body>
+</html>
